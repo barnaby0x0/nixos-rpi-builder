@@ -15,7 +15,11 @@
         # Application portable
         packages.default = pkgs.writeShellApplication {
           name = "rpi-builder";
-          runtimeInputs = with pkgs; [ qemu-user-static zstd ];
+          runtimeInputs = with pkgs; [ 
+            qemu-user 
+            zstd 
+            bintools # Pour binfmt
+          ];
           text = ''
             set -e
             
@@ -28,6 +32,12 @@
             
             # Enable cross-compilation
             export NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1
+            
+            # Setup binfmt for ARM emulation
+            if [ ! -f /proc/sys/fs/binfmt_misc/arm64 ]; then
+              echo "⚙️ Setting up ARM emulation..."
+              ${pkgs.qemu-user}/bin/qemu-binfmt-setup aarch64
+            fi
             
             # Build the image
             nix build .#images.rpi4 --system "$TARGET_SYSTEM" --out-link "$OUTPUT_DIR/latest"
@@ -68,8 +78,9 @@
         # Dev shell with all tools
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
-            qemu-user-static
+            qemu-user
             zstd
+            bintools
             parted
             util-linux
             self.packages.${system}.default

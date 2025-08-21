@@ -14,6 +14,39 @@ NC='\033[0m'
 : "''${IMAGE_PREFIX:=nixos-rpi4}"
 : "''${COMPRESSION_LEVEL:=19}"
 
+# QEMU setup function
+setup_qemu() {
+    echo -e "''${YELLOW}⚙️ Setting up QEMU static binaries...''${NC}"
+    
+    # Check if binfmt is already setup
+    if [ -f /proc/sys/fs/binfmt_misc/arm64 ] || [ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+        echo -e "''${GREEN}✅ ARM emulation already enabled''${NC}"
+        return 0
+    fi
+    
+    # Try to setup binfmt
+    if command -v qemu-binfmt-setup >/dev/null 2>&1; then
+        sudo qemu-binfmt-setup aarch64
+        echo -e "''${GREEN}✅ QEMU ARM emulation configured''${NC}"
+    else
+        echo -e "''${YELLOW}⚠️  qemu-binfmt-setup not found, trying manual setup...''${NC}"
+        
+        # Manual binfmt registration
+        if [ -d /proc/sys/fs/binfmt_misc ]; then
+            echo ':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-aarch64-static:OCF' | \
+            sudo tee /proc/sys/fs/binfmt_misc/register >/dev/null 2>&1 || true
+        fi
+    fi
+    
+    # Verify setup
+    if [ -f /proc/sys/fs/binfmt_misc/arm64 ] || [ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+        echo -e "''${GREEN}✅ ARM emulation verified''${NC}"
+    else
+        echo -e "''${YELLOW}⚠️  ARM emulation may not work properly''${NC}"
+        echo -e "''${YELLOW}   You may need to run: sudo nix shell nixpkgs#qemu-user -c qemu-binfmt-setup aarch64''${NC}"
+    fi
+}
+
 usage() {
     cat << EOF
 ${GREEN}Raspberry Pi Image Builder${NC}
@@ -24,17 +57,19 @@ Options:
   -o, --output DIR      Output directory (default: ./images)
   -n, --name NAME       Image name prefix (default: nixos-rpi4)
   -c, --compress LEVEL  Compression level (1-19, default: 19)
+  --no-setup           Skip QEMU setup
   -h, --help           Show this help
   --no-color           Disable colors
 
 Examples:
   $0 -o ./builds -n my-rpi
-  $0 --compress 10
+  $0 --compress 10 --no-setup
 
 EOF
 }
 
 # Parse arguments
+NO_SETUP=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         -o|--output)
@@ -48,6 +83,10 @@ while [[ $# -gt 0 ]]; do
         -c|--compress)
             COMPRESSION_LEVEL="$2"
             shift 2
+            ;;
+        --no-setup)
+            NO_SETUP=true
+            shift
             ;;
         -h|--help)
             usage
@@ -77,6 +116,13 @@ echo -e "''${YELLOW}Target:''${NC} aarch64-linux"
 echo -e "''${YELLOW}Output:''${NC} $OUTPUT_DIR/"
 echo -e "''${YELLOW}Image:''${NC} $IMAGE_NAME"
 echo ""
+
+# Setup QEMU if not disabled
+if ! $NO_SETUP; then
+    setup_qemu
+else
+    echo -e "''${YELLOW}⏭️  Skipping QEMU setup''${NC}"
+fi
 
 # Build with Nix
 export NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1
