@@ -1,4 +1,4 @@
-{ config, pkgs, ... }: {
+{ config, pkgs, lib, ... }: {
   sdImage.compressImage = false;
   system.stateVersion = "24.05"; # depends on the current NixOS version
 

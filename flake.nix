@@ -6,8 +6,9 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-{
+
   outputs = { self, nixpkgs, ... }: {
+    lib = nixpkgs.lib;
     images.router = self.nixosConfigurations.router.config.system.build.sdImage;
     nixosConfigurations = {
       router = nixpkgs.lib.nixosSystem {
@@ -19,4 +20,4 @@
       };
     };
   };
-}}
+}
