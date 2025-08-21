@@ -1,23 +1,31 @@
 {
-  description = "Raspberry Pi Image Builder - Packer-like tool";
-
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-25.05";
-    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-
-  outputs = { self, nixpkgs, ... }: {
-    lib = nixpkgs.lib;
-    images.router = self.nixosConfigurations.router.config.system.build.sdImage;
-    nixosConfigurations = {
-      router = nixpkgs.lib.nixosSystem {
-        system = "aarch64-linux";
-        modules = [
-          "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
-          ./configuration.nix
-        ];
-      };
+  outputs = { self, nixpkgs, nixos-generators, ... }: {
+    # Définition de la configuration NixOS
+    nixosConfigurations.router = nixpkgs.lib.nixosSystem {
+      system = "aarch64-linux";
+      modules = [
+        "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+        ./configuration.nix
+        # {
+        #   boot.loader.grub.enable = false;
+        #   boot.loader.raspberryPi = {
+        #     enable = true;
+        #     version = 4;
+        #   };
+        #   boot.kernelParams = ["console=ttyS0,115200n8" "console=ttyAMA0,115200n8" "console=tty0"];
+        # }
+      ];
     };
+
+    # Définition des packages pour cross-compilation
+    packages.x86_64-linux.sdImage = self.nixosConfigurations.router.config.system.build.sdImage;
   };
 }
