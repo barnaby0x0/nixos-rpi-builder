@@ -1,6 +1,6 @@
 { config, pkgs, lib, ... }: {
   sdImage.compressImage = false;
-  system.stateVersion = "24.05"; # depends on the current NixOS version
+  system.stateVersion = "25.05"; # depends on the current NixOS version
 
   # Locale
   time.timeZone = "Europe/Paris"; # change me
