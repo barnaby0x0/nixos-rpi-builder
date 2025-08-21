@@ -1,94 +1,45 @@
-{ config, pkgs, ... }:
+{ config, pkgs, ... }: {
+  sdImage.compressImage = false;
+  system.stateVersion = "24.05"; # depends on the current NixOS version
 
-{
-  imports = [
-    "${pkgs.path}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
-  ];
+  # Locale
+  time.timeZone = "Europe/Paris"; # change me
+  services.ntp.enable = true;
 
-  # Base system
-  networking.hostName = "nixos-rpi";
-  system.stateVersion = "23.11";
+  networking = {
+    defaultGateway = "10.10.0.1"; # change me;
+    hostName = "router"; # change me
+    interfaces.eth0.ipv4.addresses = [{
+      address = "10.10.0.207"; # change me
+      prefixLength = 24;
+    }];
+    nameservers = [ "1.1.1.1" ];
+
+    firewall = {
+      enable = true;
+    };
+  };
 
   # Users
-  users.users.nixos = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    initialPassword = "nixos";
-    openssh.authorizedKeys.keys = [
-      "ssh-rsa AAAAB3NzaC1yc2E..." # Your SSH key here
-    ];
-  };
-
-  # SSH
-  services.openssh = {
-    enable = true;
-    settings.PasswordAuthentication = false;
-    settings.PermitRootLogin = "no";
-  };
-
-  # Raspberry Pi specific
-  hardware.enableRedistributableFirmware = true;
-  boot = {
-    kernelPackages = pkgs.linuxKernel.packages.linux_rpi4;
-    loader.grub.enable = false;
-    loader.generic-extlinux-compatible.enable = true;
-    kernelParams = [
-      "console=ttyAMA0,115200"
-      "console=tty1"
-      "cma=256M"
-    ];
-  };
-
-  # Optimizations
-  nix.settings = {
-    cores = 0; # Use all cores
-    max-jobs = "auto";
-    experimental-features = [ "nix-command" "flakes" ];
-  };
-
-  # Minimal system - remove unnecessary packages
-  environment.defaultPackages = [ ];
-  environment.systemPackages = with pkgs; [
-    vim
-    curl
-    wget
-    htop
-    tmux
+  users.mutableUsers = false;
+  users.users.root.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP1oFq0GYt8j7vg2nNAJNzwBtqrdOUDp8CMQwLRiz4Vz user@ull" # change me
   ];
 
-  # Auto resize filesystem on first boot
-  sdImage = {
-    compressImage = false; # We compress manually
-    postBuildCommands = ''
-      # Create resize script
-      cat > $mountPoint/first-boot-resize.sh << 'EOF'
-      #!/bin/sh
-      parted /dev/mmcblk0 resizepart 2 100%
-      resize2fs /dev/mmcblk0p2
-      rm /first-boot-resize.sh
-      systemctl disable first-boot-resize
-      EOF
-      
-      chmod +x $mountPoint/first-boot-resize.sh
-      
-      # Systemd service to resize on first boot
-      cat > $mountPoint/etc/systemd/system/first-boot-resize.service << 'EOF'
-      [Unit]
-      Description=Resize filesystem on first boot
-      After=local-fs.target
-      RequiresMountsFor=/var/lib/misc
-      
-      [Service]
-      Type=oneshot
-      ExecStart=/first-boot-resize.sh
-      RemainAfterExit=yes
-      
-      [Install]
-      WantedBy=multi-user.target
-      EOF
-      
-      ln -s $mountPoint/etc/systemd/system/first-boot-resize.service \
-           $mountPoint/etc/systemd/system/multi-user.target.wants/
-    '';
+  # Enable ssh
+  systemd.services.sshd.wantedBy = lib.mkOverride 40 [ "multi-user.target" ];
+  services.openssh = {
+    enable = true;
+    ports = [ 22 ];
+    settings = {
+      PermitRootLogin = "prohibit-password";
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+    };
   };
+
+  # Networking
+  networking.firewall.allowedTCPPorts = [ 22 ];
+
+
 }
